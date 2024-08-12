@@ -1,0 +1,16 @@
+
+{
+  "client_id": "GET_FROM_ADOBE_IO_CONSOLE",
+  "client_secrets": ["GET_FROM_ADOBE_IO_CONSOLE"],
+  "technical_account_id": "GET_FROM_ADOBE_IO_CONSOLE",
+  "technical_account_email": "GET_FROM_ADOBE_IO_CONSOLE",
+  "ims_org_id": "GET_FROM_ADOBE_IO_CONSOLE",
+  "scopes": [
+    "openid",
+    "AdobeID",
+    "read_organizations",
+    "additional_info.projectedProductContext",
+    "read_pc.dma_aem_ams"
+  ],
+  "oauth_enabled": true
+}

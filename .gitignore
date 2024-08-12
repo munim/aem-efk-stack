@@ -1,0 +1,6 @@
+data/*
+logs/*
+fluent-bit/conf/db/*
+secured-config/*
+.env
+
