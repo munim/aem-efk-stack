@@ -24,6 +24,14 @@ download_logs () {
   done;
 }
 
+function check_if_aio_is_installed() {
+  if ! command -v aio &> /dev/null
+  then
+      echo "ERROR: aio not installed. Refer to adobeio documentation for installation instruction"
+      exit 1
+  fi
+}
+
 while getopts ":hd:" opt; do
   case $opt in
     d) DAYS=$OPTARG ;;
@@ -39,5 +47,6 @@ done
 # Set default value to 1 if not provided
 DAYS=${DAYS:-1}
 
+check_if_aio_is_installed
 download_logs
 
