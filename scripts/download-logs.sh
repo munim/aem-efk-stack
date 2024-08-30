@@ -5,8 +5,6 @@ declare -A SVC_MAP
 SVC_MAP["author"]="aemaccess aemerror aemrequest cdn"
 SVC_MAP["publish"]="aemaccess aemerror aemrequest cdn"
 SVC_MAP["dispatcher"]="httpdaccess httpderror aemdispatcher"
-SERVICES=(author publish)
-LOG_NAMES=(aemaccess aemerror aemrequest cdn)
 
 download_logs () {
   for envid in "${ENV_IDS[@]}"; do
