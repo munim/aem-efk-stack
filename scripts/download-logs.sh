@@ -14,8 +14,7 @@ download_logs () {
       for logname in "${LOGS[@]}"; do
         OUTDIR="./logs/$envid/$svc/$logname"
         mkdir -p $OUTDIR >/dev/null 2>&1
-        echo "####### Downloading: $svc - $logname #######"
-        echo $DAYS
+        echo "####### Downloading: $svc - $logname [$DAYS day(s)] #######"
         aio cloudmanager:environment:download-logs $envid $svc $logname $DAYS -o $OUTDIR
       done;
     done;
