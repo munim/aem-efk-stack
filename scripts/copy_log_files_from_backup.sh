@@ -31,5 +31,4 @@ for ((d = 0; d <= ($END_EPOCH - $START_EPOCH) / 86400; d++)); do
 done
 
 # Final rsync command
-echo ${INCLUDE_PATTERNS}
-#rsync -av --include='*/' $INCLUDE_PATTERNS --exclude='*' "$SOURCE_PATH/" "$DESTINATION_PATH/"
+rsync -av --include='*/' $INCLUDE_PATTERNS --exclude='*' "$SOURCE_PATH/" "$DESTINATION_PATH/"
