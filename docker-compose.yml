@@ -1,68 +1,98 @@
 ---
 services:
-  # web:
-  #   image: httpd
-  #   ports:
-  #     - "80:80"
-  #   links:
-  #     - fluentd
-  #   logging:
-  #     driver: "fluentd"
-  #     options:
-  #       fluentd-address: localhost:24224
-  #       tag: httpd.access
-
-  fluent-bit:
-    image: fluent/fluent-bit:3.1.4
-    container_name: fluent-bit
+  # Certificate Initialization Service
+  elastic-certgen:
+    image: docker.elastic.co/elasticsearch/elasticsearch:${STACK_VERSION}
+    container_name: elastic-certgen
+    user: 1000:1001
+    command: >
+      /bin/bash -c "
+      if [ ! -f /usr/share/elasticsearch/config/cert/ca.crt ]; then
+        elasticsearch-certutil ca --silent --pem -out /usr/share/elasticsearch/config/cert/elastic-stack-ca.zip &&
+        unzip /usr/share/elasticsearch/config/cert/elastic-stack-ca.zip -d /usr/share/elasticsearch/config/cert &&
+        elasticsearch-certutil cert --silent --pem --ca-cert /usr/share/elasticsearch/config/cert/ca/ca.crt --ca-key /usr/share/elasticsearch/config/cert/ca/ca.key --out /usr/share/elasticsearch/config/cert/elastic-certificates.zip --name elasticsearch --pass=1234 &&
+        unzip /usr/share/elasticsearch/config/cert/elastic-certificates.zip -d /usr/share/elasticsearch/config/cert
+      fi"
     volumes:
-      - ./fluent-bit/conf:/fluent-bit/etc
-      - ./logs:/logs
-    links:
-      - "elasticsearch"
-    ports:
-      - "24224:24224"
-      - "24224:24224/udp"
+      - ${CERTS_DIR}:/usr/share/elasticsearch/config/cert
     networks:
-        - elkstack
+      - elk
 
   elasticsearch:
-    image: docker.elastic.co/elasticsearch/elasticsearch:7.13.1
+    image: docker.elastic.co/elasticsearch/elasticsearch:${STACK_VERSION}
     container_name: elasticsearch
+    user: 1000:1001
     environment:
       - discovery.type=single-node
-      - cluster.name=es-docker
-      - node.name=node1
-      - bootstrap.memory_lock=true
-      - "ES_JAVA_OPTS=-Xms2g -Xmx2g"
+      - xpack.security.enabled=true
+      - xpack.security.http.ssl.enabled=true
+      - xpack.security.http.ssl.verification_mode=certificate
+      - xpack.security.http.ssl.key=/usr/share/elasticsearch/config/cert/elasticsearch/elasticsearch.key
+      - xpack.security.http.ssl.certificate=/usr/share/elasticsearch/config/cert/elasticsearch/elasticsearch.crt
+      - xpack.security.http.ssl.certificate_authorities=/usr/share/elasticsearch/config/cert/ca/ca.crt
+      - ELASTIC_PASSWORD=${ELASTIC_PASSWORD}
     volumes:
-      - ./data/esdata:/usr/share/elasticsearch/data
-    expose:
-      - "9200"
+      - elasticsearch_data:/usr/share/elasticsearch/data
+      - ${CERTS_DIR}:/usr/share/elasticsearch/config/cert
     ports:
       - "9200:9200"
-    ulimits:
-      memlock:
-        soft: -1
-        hard: -1
-      nofile:
-        soft: 65536
-        hard: 65536
-    mem_limit: 4g
+    depends_on:
+      - elastic-certgen
     networks:
-        - elkstack
+      - elk
 
   kibana:
+    image: docker.elastic.co/kibana/kibana:${STACK_VERSION}
     container_name: kibana
-    image: docker.elastic.co/kibana/kibana:7.13.1
-    links:
-      - "elasticsearch"
+    user: 1000:1001
+    environment:
+      - ELASTICSEARCH_HOSTS=https://elasticsearch:9200
+      - ELASTICSEARCH_SSL_CERTIFICATEAUTHORITIES=/usr/share/kibana/config/cert/ca/ca.crt
+      - ELASTICSEARCH_SSL_CERTIFICATE=/usr/share/kibana/config/cert/elasticsearch/elasticsearch.crt
+      - ELASTICSEARCH_SSL_KEY=/usr/share/kibana/config/cert/elasticsearch/elasticsearch.key
+      - SERVER_SSL_ENABLED=true
+      - SERVER_SSL_CERTIFICATE=/usr/share/kibana/config/cert/elasticsearch/elasticsearch.crt
+      - SERVER_SSL_KEY=/usr/share/kibana/config/cert/elasticsearch/elasticsearch.key
+      - ELASTICSEARCH_USERNAME=kibana_user # Add username
+      - ELASTICSEARCH_PASSWORD=kibana123 # Add password, should match ELASTIC_PASSWORD in elasticsearch service
+      - SERVER_HOST=0.0.0.0
+    volumes:
+      - ${CERTS_DIR}:/usr/share/kibana/config/cert
+      - ./data/kibana:/usr/share/kibana/data
+    depends_on:
+      - elasticsearch
     ports:
       - "5601:5601"
-    mem_limit: 1g
     networks:
-        - elkstack
+      - elk
+
+  fluent-bit:
+    image: fluent/fluent-bit:latest
+    container_name: fluent-bit
+    user: 1000:1001
+    environment:
+      - ELASTICSEARCH_USERNAME=kibana_user # Add username
+      - ELASTICSEARCH_PASSWORD=kibana123 # Add password, should match ELASTIC_PASSWORD in elasticsearch service
+      - FLUENT_ELASTICSEARCH_HOST=elasticsearch
+      - FLUENT_ELASTICSEARCH_PORT=9200
+      - FLUENT_ELASTICSEARCH_TLS=On
+      - FLUENT_ELASTICSEARCH_TLS_VERIFY=Off
+      - FLUENT_ELASTICSEARCH_TLS_CA=/fluent-bit/cert/ca/ca.crt
+      - FLUENT_ELASTICSEARCH_TLS_CLIENT_CERT=/fluent-bit/cert/elasticsearch/elasticsearch.crt
+      - FLUENT_ELASTICSEARCH_TLS_CLIENT_KEY=/fluent-bit/cert/elasticsearch/elasticsearch.key
+      - FLUENT_ELASTICSEARCH_TLS_CLIENT_KEY_PASSWD=1234
+    volumes:
+      - ${CERTS_DIR}:/fluent-bit/cert
+      - ./fluent-bit/conf:/fluent-bit/etc
+    depends_on:
+      - elasticsearch
+    networks:
+      - elk
 
 networks:
-    elkstack:
-        driver: bridge
+  elk:
+    driver: bridge
+
+volumes:
+  elasticsearch_data:
+    driver: local

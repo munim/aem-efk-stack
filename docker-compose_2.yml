@@ -1,0 +1,111 @@
+---
+services:
+  setup-elastic:
+    image: docker.elastic.co/elasticsearch/elasticsearch:${STACK_VERSION}
+    container_name: setup-elastic
+    volumes:
+      - ${CERTS_DIR}:/certs
+    user: "1000:1000"
+    environment:
+      - ELASTIC_PASSWORD=${ELASTIC_PASSWORD}
+    entrypoint: >
+      sh -c "
+        /usr/share/elasticsearch/bin/elasticsearch-certutil cert --self-signed -out /certs/elastic-certificates.zip -pem -pass ${ELASTIC_PASSWORD} &&
+        unzip -o -j /certs/elastic-certificates.zip -d /certs &&
+        rm /certs/elastic-certificates.zip
+      "
+
+  es-01:
+    image: docker.elastic.co/elasticsearch/elasticsearch:${STACK_VERSION}
+    container_name: es-01
+    user: "1000:1000"
+    environment:
+      - xpack.security.enabled=true
+      - discovery.type=single-node
+      - ELASTICSEARCH_PASSWORD=${ELASTIC_PASSWORD}
+      - xpack.security.transport.ssl.enabled=true
+      - xpack.security.transport.ssl.verification_mode=certificate
+      - xpack.security.transport.ssl.keystore.path=/usr/share/elasticsearch/config/certs/elastic-certificates.p12
+      - xpack.security.transport.ssl.truststore.path=/usr/share/elasticsearch/config/certs/elastic-certificates.p12
+      - xpack.security.http.ssl.enabled=true
+      - xpack.security.http.ssl.keystore.path=/usr/share/elasticsearch/config/certs/elastic-certificates.p12
+      - xpack.security.http.ssl.truststore.path=/usr/share/elasticsearch/config/certs/elastic-certificates.p12
+      - bootstrap.memory_lock=true
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+    volumes:
+      - elastic-data:/usr/share/elasticsearch/data
+      - ${CERTS_DIR}:/usr/share/elasticsearch/config/certs
+    mem_limit: ${MEM_LIMIT}
+    ports:
+      - ${ES_PORT}:9200
+      - 9300:9300
+    networks:
+      - efk-net
+    depends_on:
+      - setup-elastic
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "curl -s --cacert /usr/share/kibana/config/certs/elastic-certificates.pem https://localhost:9200 | grep -q 'missing authentication credentials'",
+        ]
+      interval: 10s
+      timeout: 10s
+      retries: 120
+
+  kibana:
+    image: docker.elastic.co/elasticsearch/elasticsearch:${STACK_VERSION}
+    container_name: kibana
+    user: "1000:1000"
+    environment:
+      - ELASTICSEARCH_URL=https://es-01:9200
+      - ELASTICSEARCH_USERNAME=elastic
+      - ELASTICSEARCH_PASSWORD=${ELASTIC_PASSWORD}
+      - SERVER.SSL.ENABLED=true
+      - SERVER.SSL.CERTIFICATE=/usr/share/kibana/config/certs/elastic-certificates.pem
+      - SERVER.SSL.KEY=/usr/share/kibana/config/certs/elastic-certificates.key
+    volumes:
+      - ${CERTS_DIR}:/usr/share/kibana/config/certs
+    ports:
+      - ${KIBANA_PORT}:5601
+    networks:
+      - efk-net
+    depends_on:
+      es-01:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "curl -s -I http://localhost:5601 | grep -q 'HTTP/1.1 302 Found'",
+        ]
+      interval: 10s
+      timeout: 10s
+      retries: 120
+
+  fluent-bit:
+    image: fluent/fluent-bit:3.1.10
+    container_name: fluent-bit
+    user: "1000:1000"
+    volumes:
+      - ./fluent-bit/conf:/fluent-bit/etc
+      - ${CERTS_DIR}:/usr/share/fluent-bit/config/certs
+    environment:
+      - ELASTICSEARCH_HOSTS=es-01
+      - ELASTICSEARCH_USERNAME=elastic
+      - ELASTICSEARCH_PASSWORD=${ELASTIC_PASSWORD}
+      - ES_PORT=${ES_PORT}
+    networks:
+      - efk-net
+    depends_on:
+      es-01:
+        condition: service_healthy
+
+volumes:
+  elastic-data:
+
+networks:
+  efk-net:
