@@ -1,32 +1,21 @@
 ---
 services:
-  # web:
-  #   image: httpd
-  #   ports:
-  #     - "80:80"
-  #   links:
-  #     - fluentd
-  #   logging:
-  #     driver: "fluentd"
-  #     options:
-  #       fluentd-address: localhost:24224
-  #       tag: httpd.access
-
   elasticsearch:
     image: docker.elastic.co/elasticsearch/elasticsearch:${STACK_VERSION}
-    container_name: elasticsearch
+    container_name: ${ELASTICSEARCH_HOST}
     environment:
       - discovery.type=single-node
       - cluster.name=es-docker
-      - node.name=node1
+      - node.name=${ELASTICSEARCH_HOST}
       - bootstrap.memory_lock=true
+      - ELASTICSEARCH_PASSWORD=${ELASTICSEARCH_PASSWORD}
       - "ES_JAVA_OPTS=-Xms2g -Xmx2g"
     volumes:
       - ./data/esdata:/usr/share/elasticsearch/data
     expose:
       - "9200"
     ports:
-      - "9200:9200"
+      - "${ELASTICSEARCH_PORT}:9200"
     ulimits:
       memlock:
         soft: -1
@@ -36,37 +25,45 @@ services:
         hard: 65536
     mem_limit: 4g
     networks:
-      - elkstack
+      - net
 
   kibana:
     container_name: kibana
     image: docker.elastic.co/kibana/kibana:${STACK_VERSION}
     environment:
-      - ELASTICSEARCH_HOSTS=http://elasticsearch:9200
+      - ELASTICSEARCH_HOSTS=http://${ELASTICSEARCH_HOST}:${ELASTICSEARCH_PORT}
+      - ELASTICSEARCH_USERNAME=${ES_KIBANA_USER}
+      - ELASTICSEARCH_PASSWORD=${ES_KIBANA_PASSWORD}
     ports:
       - "5601:5601"
     mem_limit: 1g
     depends_on:
       - elasticsearch
     networks:
-      - elkstack
+      - net
 
   fluent-bit:
-    image: fluent/fluent-bit:3.1.4
+    image: fluent/fluent-bit:3.1.10
     container_name: fluent-bit
     volumes:
       - ./fluent-bit/conf:/fluent-bit/etc
+      - ./data/fluent-bit/db:/fluent-bit/etc/db
       - ./logs:/logs
-    links:
-      - "elasticsearch"
+    # links:
+    #   - "elasticsearch"
     ports:
       - "24224:24224"
       - "24224:24224/udp"
+    environment:
+      - ELASTICSEARCH_HOST=${ELASTICSEARCH_HOST}
+      - ELASTICSEARCH_PORT=${ELASTICSEARCH_PORT}
+      - ELASTICSEARCH_USERNAME=${ES_LOGSTASH_USER}
+      - ELASTICSEARCH_PASSWORD=${ES_LOGSTASH_PASSWORD}
     networks:
-      - elkstack
+      - net
     depends_on:
       - elasticsearch
 
 networks:
-  elkstack:
+  net:
     driver: bridge
