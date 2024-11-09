@@ -12,22 +12,8 @@ services:
   #       fluentd-address: localhost:24224
   #       tag: httpd.access
 
-  fluent-bit:
-    image: fluent/fluent-bit:3.1.4
-    container_name: fluent-bit
-    volumes:
-      - ./fluent-bit/conf:/fluent-bit/etc
-      - ./logs:/logs
-    links:
-      - "elasticsearch"
-    ports:
-      - "24224:24224"
-      - "24224:24224/udp"
-    networks:
-        - elkstack
-
   elasticsearch:
-    image: docker.elastic.co/elasticsearch/elasticsearch:7.13.1
+    image: docker.elastic.co/elasticsearch/elasticsearch:${STACK_VERSION}
     container_name: elasticsearch
     environment:
       - discovery.type=single-node
@@ -50,19 +36,37 @@ services:
         hard: 65536
     mem_limit: 4g
     networks:
-        - elkstack
+      - elkstack
 
   kibana:
     container_name: kibana
-    image: docker.elastic.co/kibana/kibana:7.13.1
-    links:
-      - "elasticsearch"
+    image: docker.elastic.co/kibana/kibana:${STACK_VERSION}
+    environment:
+      - ELASTICSEARCH_HOSTS=http://elasticsearch:9200
     ports:
       - "5601:5601"
     mem_limit: 1g
+    depends_on:
+      - elasticsearch
     networks:
-        - elkstack
+      - elkstack
+
+  fluent-bit:
+    image: fluent/fluent-bit:3.1.4
+    container_name: fluent-bit
+    volumes:
+      - ./fluent-bit/conf:/fluent-bit/etc
+      - ./logs:/logs
+    links:
+      - "elasticsearch"
+    ports:
+      - "24224:24224"
+      - "24224:24224/udp"
+    networks:
+      - elkstack
+    depends_on:
+      - elasticsearch
 
 networks:
-    elkstack:
-        driver: bridge
+  elkstack:
+    driver: bridge
