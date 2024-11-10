@@ -1,5 +1,10 @@
 #!/bin/bash
 
+# Description:
+# This script synchronizes log files from a source directory to a destination directory
+# based on a specified date range. It uses rsync to include only log files with dates
+# within the specified range and excludes all other files.
+
 # Check for the correct number of arguments
 if [ "$#" -lt 3 ]; then
     echo "Usage: $0 <source_path> <destination_path> <start_date> [end_date]"
@@ -23,7 +28,7 @@ else
     END_EPOCH=$(date -d "$END_DATE" +%s)
 fi
 
-# Generate the include patterns
+# Generate the include patterns for rsync
 INCLUDE_PATTERNS=""
 for ((d = 0; d <= ($END_EPOCH - $START_EPOCH) / 86400; d++)); do
     CURRENT_DATE=$(date -d "$START_DATE + $d days" +%Y-%m-%d)
