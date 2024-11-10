@@ -48,7 +48,8 @@ services:
     volumes:
       - ./fluent-bit/conf:/fluent-bit/etc
       - ./data/fluent-bit/db:/fluent-bit/etc/db
-      - ./logs:/logs
+      - ./data/testlogs:/logs
+      # - ./logs:/logs
     # links:
     #   - "elasticsearch"
     ports:
@@ -59,6 +60,7 @@ services:
       - ELASTICSEARCH_PORT=${ELASTICSEARCH_PORT}
       - ELASTICSEARCH_USERNAME=${ES_LOGSTASH_USER}
       - ELASTICSEARCH_PASSWORD=${ES_LOGSTASH_PASSWORD}
+      - LOG_BASE_PATH=/logs
     networks:
       - net
     depends_on:
