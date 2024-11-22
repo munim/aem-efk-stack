@@ -48,7 +48,7 @@ services:
     volumes:
       - ./fluent-bit/conf:/fluent-bit/etc
       - ./data/fluent-bit/db:/fluent-bit/etc/db
-      - ./data/testlogs:/logs
+      - ./logs:/logs
       # - ./logs:/logs
     # links:
     #   - "elasticsearch"
