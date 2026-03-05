@@ -227,4 +227,4 @@ Update the `ENV_IDS` array in `scripts/download-logs.sh` with your AEM Cloud Man
 
 ## Support
 
-For issues and feature requests, please use the [GitHub Issues](https://github.com/your-org/aem-efk-stack/issues) page.
+For issues and feature requests, please use the [GitHub Issues](https://github.com/munim/aem-efk-stack/issues) page.
