@@ -60,33 +60,61 @@ Required credentials in `secured-config/aio_cm_config.json`:
 
 ### 3. Configure Environment Variables
 
+All configuration is centralized in the `.env` file:
+
 ```bash
 # Review and customize .env file
 cat .env
 ```
 
-Key variables:
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `STACK_VERSION` | 8.15.3 | Elasticsearch/Kibana version |
+| `ELASTICSEARCH_HOST` | elasticsearch | Elasticsearch container hostname |
+| `ELASTICSEARCH_PORT` | 9200 | Elasticsearch HTTP port |
+| `ELASTICSEARCH_USERNAME` | elastic | Elasticsearch superuser |
 | `ELASTICSEARCH_PASSWORD` | elastic | Elasticsearch superuser password |
-| `ES_KIBANA_PASSWORD` | 123123 | Kibana system user password |
-| `ES_LOGSTASH_PASSWORD` | Qwer1234 | Fluent Bit Elasticsearch user password |
+| `ES_KIBANA_USER` | kibana_system | Kibana system user |
+| `ES_KIBANA_PASSWORD` | kibana123 | Kibana system user password |
+| `ES_LOGSTASH_USER` | fluent_bit | Fluent Bit user for log ingestion |
+| `ES_LOGSTASH_PASSWORD` | logstash123 | Fluent Bit user password |
+| `KIBANA_PORT` | 5601 | Kibana web UI port |
 
-### 4. Start the Stack
+### 4. Start Elasticsearch First
 
 ```bash
 # Create required directories
 mkdir -p data/esdata data/fluent-bit/db logs
 
-# Start all services
-docker-compose up -d
+# Start only Elasticsearch first
+docker-compose up -d elasticsearch
 
 # Wait for Elasticsearch to be ready (30-60 seconds)
 curl -u elastic:elastic http://localhost:9200/_cluster/health
 ```
 
-### 5. Access Kibana
+### 5. Run Initial Account Setup
+
+```bash
+./scripts/setup-elasticsearch.sh
+```
+
+This script will:
+- Set the Kibana system user password
+- Create the `logstash_writer` role with appropriate permissions
+- Create the `fluent_bit` user for log ingestion
+
+### 6. Restart All Services
+
+```bash
+# Stop Elasticsearch
+docker-compose stop elasticsearch
+
+# Start all services
+docker-compose up -d
+```
+
+### 7. Access Kibana
 
 Open your browser: http://localhost:5601
 
@@ -94,7 +122,7 @@ Login credentials:
 - Username: `elastic`
 - Password: (value from `ELASTICSEARCH_PASSWORD` in `.env`)
 
-### 6. Download AEM Logs
+### 8. Download AEM Logs
 
 ```bash
 # Download logs from last 1 day (default)
@@ -108,6 +136,7 @@ Login credentials:
 
 | Script | Description |
 |--------|-------------|
+| `scripts/setup-elasticsearch.sh` | Initialize Elasticsearch users and roles |
 | `scripts/download-logs.sh -d [days]` | Download logs from Cloud Manager |
 | `scripts/compress_old_logs.sh` | Compress log files older than 7 days |
 | `scripts/extract_archived_old_7z_log_files.sh` | Extract compressed 7z log archives |
@@ -133,14 +162,16 @@ The following AEM log types are automatically parsed and indexed:
 ```
 .
 ├── docker-compose.yml          # EFK stack services definition
-├── .env                        # Environment configuration
+├── .env                        # Centralized environment configuration
 ├── aio_cm_config-sample.json   # Adobe IO config template
 ├── fluent-bit/
 │   └── conf/
 │       ├── fluent-bit.conf     # Fluent Bit pipeline config
 │       ├── parsers.conf        # Custom log parsers
 │       └── schema.json         # Elasticsearch index mappings
-├── scripts/                    # Helper scripts
+├── scripts/
+│   ├── setup-elasticsearch.sh # Initial account setup
+│   └── *.sh                    # Other helper scripts
 ├── data/                       # Persistent data (gitignored)
 │   ├── esdata/                 # Elasticsearch data
 │   └── fluent-bit/db/          # Fluent Bit position tracking
@@ -178,6 +209,28 @@ sudo chown -R 1000:1000 data/esdata
 # Verify aio CLI is installed and configured
 aio login
 aio config:get ims.contexts.aio-cli-plugin-cloudmanager
+```
+
+### Reset Elasticsearch passwords
+
+If you need to reset passwords or re-run the initial setup:
+
+```bash
+# Stop all services
+docker-compose down
+
+# Start only Elasticsearch
+docker-compose up -d elasticsearch
+
+# Wait for Elasticsearch to be ready
+curl -u elastic:elastic http://localhost:9200/_cluster/health
+
+# Re-run setup
+./scripts/setup-elasticsearch.sh
+
+# Stop Elasticsearch and start all services
+docker-compose stop elasticsearch
+docker-compose up -d
 ```
 
 ## Customization
