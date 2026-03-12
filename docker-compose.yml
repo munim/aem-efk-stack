@@ -3,12 +3,16 @@ services:
   elasticsearch:
     image: docker.elastic.co/elasticsearch/elasticsearch:${STACK_VERSION}
     container_name: ${ELASTICSEARCH_HOST}
+    env_file:
+      - .env
     environment:
       - discovery.type=single-node
       - cluster.name=es-docker
       - node.name=${ELASTICSEARCH_HOST}
       - bootstrap.memory_lock=true
-      - ELASTICSEARCH_PASSWORD=${ELASTICSEARCH_PASSWORD}
+      - ELASTIC_PASSWORD=${ELASTICSEARCH_PASSWORD} # ← correct var name
+      - xpack.security.enabled=true # ← explicit
+      - xpack.security.http.ssl.enabled=false # ← HTTP (not HTTPS) for internal comms
       - "ES_JAVA_OPTS=-Xms2g -Xmx2g"
     volumes:
       - ./data/esdata:/usr/share/elasticsearch/data
@@ -30,12 +34,14 @@ services:
   kibana:
     container_name: kibana
     image: docker.elastic.co/kibana/kibana:${STACK_VERSION}
+    env_file:
+      - .env
     environment:
       - ELASTICSEARCH_HOSTS=http://${ELASTICSEARCH_HOST}:${ELASTICSEARCH_PORT}
       - ELASTICSEARCH_USERNAME=${ES_KIBANA_USER}
       - ELASTICSEARCH_PASSWORD=${ES_KIBANA_PASSWORD}
     ports:
-      - "5601:5601"
+      - "${KIBANA_PORT}:5601"
     mem_limit: 1g
     depends_on:
       - elasticsearch
@@ -45,6 +51,8 @@ services:
   fluent-bit:
     image: fluent/fluent-bit:3.1.10
     container_name: fluent-bit
+    env_file:
+      - .env
     volumes:
       - ./fluent-bit/conf:/fluent-bit/etc
       - ./data/fluent-bit/db:/fluent-bit/etc/db
